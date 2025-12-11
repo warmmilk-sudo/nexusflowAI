@@ -237,7 +237,7 @@ class EmailConnector {
                     try {
                         // 先创建基本邮件对象
                         const email = {
-                            id: `email-${message.uid}-${Date.now()}`,
+                            id: `email-${message.uid}`,
                             fromName: message.envelope.from?.[0]?.name || message.envelope.from?.[0]?.address || 'Unknown',
                             fromEmail: message.envelope.from?.[0]?.address || 'unknown@example.com',
                             subject: message.envelope.subject || 'No Subject',

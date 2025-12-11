@@ -22,6 +22,7 @@ export interface InboundEmail {
   confidence?: number;
   summary?: string;
   sources?: string[];
+  subjectSummary?: string;
 }
 
 export interface DocumentFile {

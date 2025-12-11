@@ -415,7 +415,7 @@ app.post('/api/inbound/analyze', async (req, res) => {
             - Keep draft content under 300 words
             
             **Required JSON Format:**
-            {"intent":"Sales","draft":"Professional email reply content in English without line breaks or special characters","confidence":85,"sources":["document1.pdf","document2.pdf"]}`
+            {"intent":"Sales","draftReply":"Professional email reply content in English without line breaks or special characters","confidence":85,"sources":["document1.pdf","document2.pdf"]}`
             : `你是AI Epic™消融系统的智能客服助手。
             
             **重要：你必须只返回有效的JSON格式。不要添加任何额外的文本、解释或格式。**
@@ -439,7 +439,7 @@ app.post('/api/inbound/analyze', async (req, res) => {
             - 回复内容保持在300字以内
             
             **必需的JSON格式:**
-            {"intent":"Sales","draft":"专业的中文邮件回复内容，不包含换行符或特殊字符","confidence":85,"sources":["文档1.pdf","文档2.pdf"]}`;
+            {"intent":"Sales","draftReply":"专业的中文邮件回复内容，不包含换行符或特殊字符","confidence":85,"sources":["文档1.pdf","文档2.pdf"]}`;
 
         const messages = [
             {
@@ -486,7 +486,7 @@ app.post('/api/inbound/analyze', async (req, res) => {
             result = JSON.parse(cleanResponse);
             
             // 验证必需的字段
-            if (!result.intent || !result.draft) {
+            if (!result.intent || !result.draftReply) {
                 throw new Error('Missing required fields in JSON response');
             }
             
@@ -505,7 +505,7 @@ app.post('/api/inbound/analyze', async (req, res) => {
             }
             
             // 尝试提取草稿内容
-            const draftMatch = response.match(/(?:draft|草稿|回复)["']?\s*:\s*["']?([\s\S]*?)["']?(?:\s*[,}]|$)/i);
+            const draftMatch = response.match(/(?:draftReply|draft|草稿|回复)["']?\s*:\s*["']?([\s\S]*?)["']?(?:\s*[,}]|$)/i);
             if (draftMatch) {
                 extractedDraft = draftMatch[1].trim();
             }
@@ -517,7 +517,7 @@ app.post('/api/inbound/analyze', async (req, res) => {
             
             result = {
                 intent: extractedIntent,
-                draft: extractedDraft,
+                draftReply: extractedDraft,
                 confidence: 75,
                 sources: []
             };
@@ -535,7 +535,7 @@ app.post('/api/inbound/analyze', async (req, res) => {
         
         res.json({
             intent: "Support",
-            draft: fallbackDraft,
+            draftReply: fallbackDraft,
             confidence: 0,
             sources: []
         });
@@ -582,6 +582,57 @@ app.post('/api/email/summarize', async (req, res) => {
         const userLanguage = language || req.headers['x-language'] || 'zh';
         const fallback = userLanguage === 'en' ? 'Unable to generate summary' : '无法生成摘要';
         res.json({ summary: email?.subject || fallback });
+    }
+});
+
+// API: 生成邮件主题总结
+app.post('/api/email/subject-summary', async (req, res) => {
+    try {
+        const { email, language } = req.body;
+        const userLanguage = language || req.headers['x-language'] || 'zh';
+
+        // 根据语言设置选择提示词
+        const prompt = userLanguage === 'en'
+            ? `
+            Please create a concise one-sentence summary of the following email content as a subject line (no more than 50 characters):
+            
+            Original Subject: ${email.subject}
+            Email Content: ${email.content}
+            
+            Generate a clear, professional subject line that summarizes the main request or topic. Return only the subject line text in English, nothing else.
+            
+            Examples:
+            - "Request for Clinical Evidence and FDA Clearance Information"
+            - "Inquiry about AI Epic System Specifications"
+            - "Training Requirements and Certification Process"
+            `
+            : `
+            请为以下邮件内容生成一个简洁的主题总结（不超过50字）：
+            
+            原始主题: ${email.subject}
+            邮件内容: ${email.content}
+            
+            生成一个清晰、专业的主题行，总结主要请求或话题。只返回主题行文本，不要其他内容。
+            
+            示例：
+            - "临床证据和FDA许可信息请求"
+            - "AI Epic系统规格咨询"
+            - "培训要求和认证流程"
+            `;
+
+        const messages = [
+            {
+                role: "user",
+                content: prompt
+            }
+        ];
+
+        const response = await callVolcengineAPI(messages);
+        res.json({ subjectSummary: response.trim() });
+    } catch (error) {
+        console.error("Subject Summary Error:", error.message);
+        const fallback = req.body.language === 'en' ? 'Unable to generate subject summary' : '无法生成主题总结';
+        res.json({ subjectSummary: req.body.email?.subject || fallback });
     }
 });
 

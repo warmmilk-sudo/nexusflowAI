@@ -89,7 +89,7 @@ export const generateOutboundDraft = async (
  */
 export const analyzeAndDraftInbound = async (
   email: InboundEmail
-): Promise<{ intent: string; draft: string; confidence: number; sources?: string[] }> => {
+): Promise<{ intent: string; draftReply: string; confidence: number; sources?: string[] }> => {
   const currentLanguage = getCurrentLanguage();
 
   try {
@@ -113,7 +113,7 @@ export const analyzeAndDraftInbound = async (
     
     return {
       intent: "Support",
-      draft: fallbackDraft,
+      draftReply: fallbackDraft,
       confidence: 0
     };
   }
@@ -141,6 +141,32 @@ export const generateEmailSummary = async (email: InboundEmail): Promise<string>
   } catch (error) {
     console.error("Summary Error:", error);
     const fallback = currentLanguage === 'en' ? 'No summary' : '无摘要';
+    return email.subject || fallback;
+  }
+};
+
+/**
+ * Generate email subject summary
+ */
+export const generateSubjectSummary = async (email: InboundEmail): Promise<string> => {
+  const currentLanguage = getCurrentLanguage();
+
+  try {
+    const response = await fetch(`${API_BASE}/api/email/subject-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-language': currentLanguage
+      },
+      body: JSON.stringify({ email, language: currentLanguage })
+    });
+
+    if (!response.ok) throw new Error('Backend request failed');
+    const data = await response.json();
+    return data.subjectSummary;
+  } catch (error) {
+    console.error("Subject Summary Error:", error);
+    const fallback = currentLanguage === 'en' ? 'No subject summary' : '无主题总结';
     return email.subject || fallback;
   }
 };
