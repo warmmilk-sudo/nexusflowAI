@@ -188,7 +188,7 @@ const KnowledgeBase: React.FC = () => {
                             }`}
                         >
                             <Upload size={16} /> 
-                            {isUploading ? 'Uploading...' : t.knowledge.uploadNew}
+                            {isUploading ? t.knowledge.uploading : t.knowledge.uploadNew}
                         </button>
                         <input
                             ref={fileInputRef}
@@ -204,8 +204,8 @@ const KnowledgeBase: React.FC = () => {
                     {documents.length === 0 ? (
                         <div className="text-center py-12 text-slate-400">
                             <FileText size={48} className="mx-auto mb-4 text-slate-200" />
-                            <p className="text-sm">No documents uploaded yet</p>
-                            <p className="text-xs mt-2">Upload your first document to get started with AI-powered responses</p>
+                            <p className="text-sm">{t.knowledge.noDocuments}</p>
+                            <p className="text-xs mt-2">{t.knowledge.uploadFirst}</p>
                         </div>
                     ) : (
                         documents.map(doc => (
@@ -238,33 +238,30 @@ const KnowledgeBase: React.FC = () => {
                    <div className="flex items-center justify-between mb-4">
                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
                            <Settings size={18} />
-                           向量化配置
+                           {t.knowledge.vectorConfig}
                        </h3>
                        <div className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                           向量化模式
+                           {t.knowledge.vectorMode}
                        </div>
                    </div>
                    
                    <div className="space-y-3">
                        <div className="text-sm text-slate-600">
                            <p className="mb-2">
-                               <strong>搜索模式:</strong> 语义搜索 (AI向量化)
+                               <strong>{t.knowledge.searchMode}:</strong> {t.knowledge.semanticSearch}
                            </p>
                            <p className="mb-2">
-                               <strong>嵌入模型:</strong> {ragConfig.embeddingModel || 'Doubao Embedding'}
-                           </p>
-                           <p className="mb-2">
-                               <strong>向量存储:</strong> {ragConfig.vectorStoreSize} 个向量已缓存
+                               <strong>{t.knowledge.vectorStorage}:</strong> {ragConfig.vectorStoreSize} {t.common.loading === '加载中...' ? '个向量已缓存' : 'vectors cached'}
                            </p>
                            <p>
-                               <strong>向量覆盖率:</strong> {ragConfig.vectorCoverage || '100%'}
+                               <strong>{t.knowledge.vectorCoverage}:</strong> {ragConfig.vectorCoverage || '100%'}
                            </p>
                        </div>
 
                        {stats.totalDocuments > 0 && ragConfig.vectorCoverage !== '100%' && (
                            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                                <p className="text-xs text-amber-700 mb-2">
-                                   <strong>检测到缺失向量:</strong> 部分文档块尚未向量化
+                                   <strong>{t.knowledge.missingVectors}</strong>
                                </p>
                                <button
                                    onClick={regenerateVectors}
@@ -276,7 +273,7 @@ const KnowledgeBase: React.FC = () => {
                                    }`}
                                >
                                    <Zap size={12} className="inline mr-1" />
-                                   {isRegeneratingVectors ? '生成中...' : '重新生成向量'}
+                                   {isRegeneratingVectors ? t.knowledge.generating : t.knowledge.regenerateVectors}
                                </button>
                            </div>
                        )}
@@ -285,7 +282,7 @@ const KnowledgeBase: React.FC = () => {
                            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                                <p className="text-xs text-green-700 flex items-center gap-1">
                                    <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-                                   所有文档已完成向量化，系统运行正常
+                                   {t.knowledge.allVectorized}
                                </p>
                            </div>
                        )}
@@ -294,11 +291,11 @@ const KnowledgeBase: React.FC = () => {
 
                {/* Index Status */}
                <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-                   <h3 className="font-bold text-slate-800 mb-4">向量化状态</h3>
+                   <h3 className="font-bold text-slate-800 mb-4">{t.knowledge.indexStatus}</h3>
                    <div className="space-y-6">
                         <div>
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-slate-500">向量化进度</span>
+                                <span className="text-slate-500">{t.knowledge.vectorProgress}</span>
                                 <span className="font-medium text-slate-900">{ragConfig.vectorCoverage || '0%'}</span>
                             </div>
                             <div className="w-full bg-slate-100 rounded-full h-2">
@@ -308,27 +305,27 @@ const KnowledgeBase: React.FC = () => {
                                 ></div>
                             </div>
                             <p className="text-xs mt-1 text-slate-500">
-                                {ragConfig.vectorStoreSize} / {ragConfig.totalChunks || stats.totalChunks} 文档块已向量化
+                                {ragConfig.vectorStoreSize} / {ragConfig.totalChunks || stats.totalChunks} {t.knowledge.chunksVectorized}
                             </p>
                         </div>
                         <div>
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-slate-500">文档数量</span>
+                                <span className="text-slate-500">{t.knowledge.documentCount}</span>
                                 <span className="font-medium text-slate-900">{stats.totalDocuments}</span>
                             </div>
                             <p className="text-xs mt-1 flex items-center gap-1">
                                 <span className={`w-1.5 h-1.5 rounded-full ${stats.totalDocuments > 0 ? 'bg-green-500' : 'bg-slate-400'}`}></span>
-                                {stats.totalDocuments > 0 ? `${stats.totalChunks} 个文档块已索引` : '暂无文档上传'}
+                                {stats.totalDocuments > 0 ? `${stats.totalChunks} ${t.common.loading === '加载中...' ? '个文档块已索引' : 'document chunks indexed'}` : t.knowledge.noDocuments}
                             </p>
                         </div>
                         <div>
                             <div className="flex justify-between text-sm mb-1">
-                                <span className="text-slate-500">存储状态</span>
-                                <span className="font-medium text-slate-900">本地磁盘</span>
+                                <span className="text-slate-500">{t.knowledge.storageStatus}</span>
+                                <span className="font-medium text-slate-900">{t.knowledge.localDisk}</span>
                             </div>
                             <p className="text-xs mt-1 flex items-center gap-1">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                向量持久化存储，重启后自动加载
+                                {t.knowledge.persistentStorage}
                             </p>
                         </div>
                    </div>

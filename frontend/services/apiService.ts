@@ -1,8 +1,53 @@
 import { CampaignFocus, Customer, InboundEmail } from "../types";
 import { getCurrentLanguage } from 'src/i18n';
 
+
+// 定义 API 基础路径，优先使用环境变量，否则回退到localhost
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+
 // API Service
 // 处理所有与后端API的通信
+/**
+ * Generates batch outbound emails for multiple customers
+ */
+export const generateBatchOutboundDrafts = async (
+  customers: Customer[],
+  focus: CampaignFocus,
+  productContext: string
+): Promise<{ success: boolean; drafts: Array<{ customerId: string; draft: string; success: boolean }>; processed: number; total: number }> => {
+  const currentLanguage = getCurrentLanguage();
+
+  try {
+    const response = await fetch(`${API_BASE}/api/outbound/batch-generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-language': currentLanguage
+      },
+      body: JSON.stringify({ customers, focus, productContext, language: currentLanguage })
+    });
+
+    if (!response.ok) throw new Error('Backend request failed');
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Batch Outbound Generation Error:", error);
+    const errorMessage = currentLanguage === 'en'
+      ? "Failed to generate batch drafts due to API error."
+      : "由于 API 错误，批量生成草稿失败。";
+    
+    return {
+      success: false,
+      drafts: customers.map(customer => ({
+        customerId: customer.id,
+        draft: errorMessage,
+        success: false
+      })),
+      processed: 0,
+      total: customers.length
+    };
+  }
+};
 
 /**
  * Generates a personalized outbound email based on customer profile and campaign focus.
@@ -15,7 +60,7 @@ export const generateOutboundDraft = async (
   const currentLanguage = getCurrentLanguage();
 
   try {
-    const response = await fetch('http://localhost:3001/api/outbound/generate', {
+    const response = await fetch(`${API_BASE}/api/outbound/generate`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -48,7 +93,7 @@ export const analyzeAndDraftInbound = async (
   const currentLanguage = getCurrentLanguage();
 
   try {
-    const response = await fetch('http://localhost:3001/api/inbound/analyze', {
+    const response = await fetch(`${API_BASE}/api/inbound/analyze`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -81,7 +126,7 @@ export const generateEmailSummary = async (email: InboundEmail): Promise<string>
   const currentLanguage = getCurrentLanguage();
 
   try {
-    const response = await fetch('http://localhost:3001/api/email/summarize', {
+    const response = await fetch(`${API_BASE}/api/email/summarize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -103,9 +148,9 @@ export const generateEmailSummary = async (email: InboundEmail): Promise<string>
 /**
  * Send email
  */
-export const sendEmail = async (to: string, subject: string, content: string): Promise<boolean> => {
+export const sendEmail = async (to: string, subject: string, content: string): Promise<{success: boolean, error?: string}> => {
   try {
-    const response = await fetch('http://localhost:3001/api/email/send', {
+    const response = await fetch(`${API_BASE}/api/email/send`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -113,17 +158,17 @@ export const sendEmail = async (to: string, subject: string, content: string): P
       body: JSON.stringify({ to, subject, content })
     });
 
+    const data = await response.json();
+    
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Send failed');
+      throw new Error(data.error || 'Send failed');
     }
     
-    const data = await response.json();
     console.log('Email send result:', data);
-    return data.success || false;
+    return { success: data.success || false };
   } catch (error) {
     console.error("Send Email Error:", error);
-    return false;
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
   }
 };
 
@@ -134,11 +179,13 @@ export const configureEmail = async (config: {
   email: string;
   password: string;
   imapHost: string;
+  imapPort?: number;
   smtpHost: string;
+  smtpPort?: number;
   senderName: string;
 }): Promise<boolean> => {
   try {
-    const response = await fetch('http://localhost:3001/api/email/configure', {
+    const response = await fetch(`${API_BASE}/api/email/configure`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -152,5 +199,77 @@ export const configureEmail = async (config: {
   } catch (error) {
     console.error("Configure Email Error:", error);
     return false;
+  }
+};
+
+/**
+ * Get email configuration
+ */
+export const getEmailConfig = async (): Promise<any> => {
+  try {
+    const response = await fetch(`${API_BASE}/api/email/config`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Get config failed');
+    const data = await response.json();
+    return data.success ? data.config : null;
+  } catch (error) {
+    console.error("Get Email Config Error:", error);
+    return null;
+  }
+};
+
+/**
+ * Get email statistics
+ */
+export const getEmailStats = async (): Promise<any> => {
+  try {
+    const response = await fetch(`${API_BASE}/api/email/stats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Get stats failed');
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Get Email Stats Error:", error);
+    return {
+      totalOutreach: 0,
+      totalReplies: 0,
+      pendingDrafts: 0,
+      activeLeads: 0,
+      responseRate: 0,
+      responseRateText: '0%',
+      weeklyData: []
+    };
+  }
+};
+
+/**
+ * Get inbox emails
+ */
+export const getInboxEmails = async (focusMode: boolean = false): Promise<any[]> => {
+  try {
+    const url = `${API_BASE}/api/email/inbox${focusMode ? '?focusMode=true' : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) throw new Error('Get inbox failed');
+    const data = await response.json();
+    return data.emails || [];
+  } catch (error) {
+    console.error("Get Inbox Emails Error:", error);
+    return [];
   }
 };

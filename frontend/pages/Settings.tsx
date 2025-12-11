@@ -1,36 +1,60 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Mail, Globe, Server } from 'lucide-react';
 import { useTranslation, getCurrentLanguage, setLanguage, Language } from 'src/i18n';
-import { configureEmail } from '../services/apiService';
+import { configureEmail, getEmailConfig } from '../services/apiService';
 
 const Settings: React.FC = () => {
     const t = useTranslation();
     const [currentLanguage, setCurrentLanguage] = useState<Language>(getCurrentLanguage());
     
-    // 邮箱配置状态
+    // 邮箱配置状态 - 已增加端口字段
     const [emailConfig, setEmailConfig] = useState({
         email: '',
         password: '',
         imapHost: 'imap.gmail.com',
+        imapPort: 993, // 新增默认值
         smtpHost: 'smtp.gmail.com',
+        smtpPort: 465, // 新增默认值
         senderName: ''
     });
     const [emailSaved, setEmailSaved] = useState(false);
     const [emailTesting, setEmailTesting] = useState(false);
 
     useEffect(() => {
-        // 加载邮箱配置
-        const storedEmailConfig = localStorage.getItem('nexusflow_email_config');
-        if (storedEmailConfig) {
-            setEmailConfig(JSON.parse(storedEmailConfig));
-        }
+        // 从后端加载邮箱配置
+        const loadEmailConfig = async () => {
+            try {
+                const config = await getEmailConfig();
+                if (config) {
+                    setEmailConfig(prev => ({
+                        ...prev,
+                        email: config.email || '',
+                        imapHost: config.imapHost || 'imap.gmail.com',
+                        imapPort: config.imapPort || 993,
+                        smtpHost: config.smtpHost || 'smtp.gmail.com',
+                        smtpPort: config.smtpPort || 465,
+                        senderName: config.senderName || '',
+                        // 密码不从后端返回，保持为空
+                        password: ''
+                    }));
+                    console.log('✅ 已加载保存的邮箱配置');
+                }
+            } catch (error) {
+                console.error('加载邮箱配置失败:', error);
+            }
+        };
+        
+        loadEmailConfig();
     }, []);
 
     const handleEmailSave = async () => {
-        // 保存到本地存储
-        localStorage.setItem('nexusflow_email_config', JSON.stringify(emailConfig));
+        // 验证必填字段
+        if (!emailConfig.email || !emailConfig.password) {
+            alert('请填写邮箱地址和密码');
+            return;
+        }
         
-        // 测试邮箱配置
+        // 测试邮箱配置并保存到后端
         setEmailTesting(true);
         try {
             const success = await configureEmail(emailConfig);
@@ -108,62 +132,90 @@ const Settings: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.emailAddress}</label>
-                        <input
-                            type="email"
-                            value={emailConfig.email}
-                            onChange={(e) => setEmailConfig({...emailConfig, email: e.target.value})}
-                            placeholder="your-email@gmail.com"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                        />
+                <div className="grid grid-cols-1 gap-4">
+                    {/* 邮箱账号和密码 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.emailAddress}</label>
+                            <input
+                                type="email"
+                                value={emailConfig.email}
+                                onChange={(e) => setEmailConfig({...emailConfig, email: e.target.value})}
+                                placeholder="your-email@exmail.qq.com"
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.emailPassword}</label>
+                            <input
+                                type="password"
+                                value={emailConfig.password}
+                                onChange={(e) => setEmailConfig({...emailConfig, password: e.target.value})}
+                                placeholder=""
+                                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
+                            />
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.emailPassword}</label>
-                        <input
-                            type="password"
-                            value={emailConfig.password}
-                            onChange={(e) => setEmailConfig({...emailConfig, password: e.target.value})}
-                            placeholder="••••••••"
-                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                        />
-                    </div>
-
+                    {/* IMAP 设置 (Host + Port) */}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.imapHost}</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                value={emailConfig.imapHost}
-                                onChange={(e) => setEmailConfig({...emailConfig, imapHost: e.target.value})}
-                                placeholder="imap.gmail.com"
-                                className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                            />
-                            <div className="absolute left-3 top-2.5 text-slate-400">
-                                <Server size={16} />
+                        <div className="flex gap-3">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    value={emailConfig.imapHost}
+                                    onChange={(e) => setEmailConfig({...emailConfig, imapHost: e.target.value})}
+                                    placeholder="imap.exmail.qq.com"
+                                    className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
+                                />
+                                <div className="absolute left-3 top-2.5 text-slate-400">
+                                    <Server size={16} />
+                                </div>
+                            </div>
+                            <div className="w-24">
+                                <input 
+                                    type="number" 
+                                    value={emailConfig.imapPort}
+                                    onChange={(e) => setEmailConfig({...emailConfig, imapPort: parseInt(e.target.value) || 0})}
+                                    placeholder="993"
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm text-center"
+                                />
                             </div>
                         </div>
                     </div>
 
+                    {/* SMTP 设置 (Host + Port) */}
                     <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.smtpHost}</label>
-                        <div className="relative">
-                            <input
-                                type="text"
-                                value={emailConfig.smtpHost}
-                                onChange={(e) => setEmailConfig({...emailConfig, smtpHost: e.target.value})}
-                                placeholder="smtp.gmail.com"
-                                className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
-                            />
-                            <div className="absolute left-3 top-2.5 text-slate-400">
-                                <Server size={16} />
+                        <div className="flex gap-3">
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    value={emailConfig.smtpHost}
+                                    onChange={(e) => setEmailConfig({...emailConfig, smtpHost: e.target.value})}
+                                    placeholder="smtp.exmail.qq.com"
+                                    className="w-full pl-10 pr-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm"
+                                />
+                                <div className="absolute left-3 top-2.5 text-slate-400">
+                                    <Server size={16} />
+                                </div>
+                            </div>
+                            <div className="w-24">
+                                <input 
+                                    type="number" 
+                                    value={emailConfig.smtpPort}
+                                    onChange={(e) => setEmailConfig({...emailConfig, smtpPort: parseInt(e.target.value) || 0})}
+                                    placeholder="465"
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-sm text-center"
+                                />
                             </div>
                         </div>
                     </div>
 
-                    <div className="md:col-span-2">
+                    {/* 发件人名称 */}
+                    <div>
                         <label className="block text-sm font-medium text-slate-700 mb-2">{t.settings.senderName}</label>
                         <input
                             type="text"

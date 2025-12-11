@@ -62,6 +62,12 @@ export interface Translations {
     selectEmail: string;
     analyzing: string;
     analysisComplete: string;
+    noEmails: string;
+    configureEmail: string;
+    from: string;
+    replied: string;
+    consultingKnowledge: string;
+    referencedDocs: string;
   };
   
   // 批量外发
@@ -92,6 +98,11 @@ export interface Translations {
     // Campaign Focus options
     productIntroduction: string;
     partnership: string;
+    // Draft editing
+    editDraft: string;
+    regenerate: string;
+    regenerating: string;
+    saveChanges: string;
   };
   
   // 知识库
@@ -106,6 +117,25 @@ export interface Translations {
     systemOptimized: string;
     used: string;
     ago: string;
+    vectorConfig: string;
+    vectorMode: string;
+    searchMode: string;
+    semanticSearch: string;
+    vectorCoverage: string;
+    vectorProgress: string;
+    documentCount: string;
+    storageStatus: string;
+    localDisk: string;
+    persistentStorage: string;
+    allVectorized: string;
+    systemNormal: string;
+    missingVectors: string;
+    regenerateVectors: string;
+    generating: string;
+    chunksVectorized: string;
+    noDocuments: string;
+    uploadFirst: string;
+    uploading: string;
   };
   
   // 设置
@@ -187,6 +217,12 @@ export const zhTranslations: Translations = {
     selectEmail: '选择一封邮件查看详情',
     analyzing: '正在分析意图...',
     analysisComplete: '分析完成',
+    noEmails: '收件箱中没有邮件',
+    configureEmail: '配置您的邮箱设置以开始接收邮件',
+    from: '发件人',
+    replied: '已回复',
+    consultingKnowledge: '正在查询知识库...',
+    referencedDocs: '引用知识库文档',
   },
   
   outbound: {
@@ -216,6 +252,11 @@ export const zhTranslations: Translations = {
     // Campaign Focus options
     productIntroduction: '产品介绍',
     partnership: '合作机会',
+    // Draft editing
+    editDraft: '编辑草稿',
+    regenerate: '重新生成',
+    regenerating: '重新生成中...',
+    saveChanges: '保存修改',
   },
   
   knowledge: {
@@ -229,6 +270,25 @@ export const zhTranslations: Translations = {
     systemOptimized: '系统已优化',
     used: '已使用',
     ago: '前',
+    vectorConfig: '向量化配置',
+    vectorMode: '向量化模式',
+    searchMode: '搜索模式',
+    semanticSearch: '语义搜索 (AI向量化)',
+    vectorCoverage: '向量覆盖率',
+    vectorProgress: '向量化进度',
+    documentCount: '文档数量',
+    storageStatus: '存储状态',
+    localDisk: '本地磁盘',
+    persistentStorage: '向量持久化存储，重启后自动加载',
+    allVectorized: '所有文档已完成向量化，系统运行正常',
+    systemNormal: '系统运行正常',
+    missingVectors: '检测到缺失向量：部分文档块尚未向量化',
+    regenerateVectors: '重新生成向量',
+    generating: '生成中...',
+    chunksVectorized: '个文档块已向量化',
+    noDocuments: '暂无文档上传',
+    uploadFirst: '上传您的第一个文档以开始使用AI智能回复',
+    uploading: '上传中...',
   },
   
   settings: {
@@ -309,6 +369,12 @@ export const enTranslations: Translations = {
     selectEmail: 'Select an email to view details',
     analyzing: 'Analyzing Intent...',
     analysisComplete: 'Analysis Complete',
+    noEmails: 'No emails in inbox',
+    configureEmail: 'Configure your email settings to start receiving emails',
+    from: 'From',
+    replied: 'Replied',
+    consultingKnowledge: 'Consulting Knowledge Base...',
+    referencedDocs: 'Referenced Knowledge Documents',
   },
   
   outbound: {
@@ -338,6 +404,11 @@ export const enTranslations: Translations = {
     // Campaign Focus options
     productIntroduction: 'Product Introduction',
     partnership: 'Partnership Opportunity',
+    // Draft editing
+    editDraft: 'Edit Draft',
+    regenerate: 'Regenerate',
+    regenerating: 'Regenerating...',
+    saveChanges: 'Save Changes',
   },
   
   knowledge: {
@@ -351,6 +422,25 @@ export const enTranslations: Translations = {
     systemOptimized: 'System Optimized',
     used: 'Used',
     ago: 'ago',
+    vectorConfig: 'Vector Configuration',
+    vectorMode: 'Vector Mode',
+    searchMode: 'Search Mode',
+    semanticSearch: 'Semantic Search (AI Vectorization)',
+    vectorCoverage: 'Vector Coverage',
+    vectorProgress: 'Vectorization Progress',
+    documentCount: 'Document Count',
+    storageStatus: 'Storage Status',
+    localDisk: 'Local Disk',
+    persistentStorage: 'Persistent vector storage, auto-loads after restart',
+    allVectorized: 'All documents vectorized, system running normally',
+    systemNormal: 'System Normal',
+    missingVectors: 'Missing vectors detected: Some document chunks not yet vectorized',
+    regenerateVectors: 'Regenerate Vectors',
+    generating: 'Generating...',
+    chunksVectorized: 'chunks vectorized',
+    noDocuments: 'No documents uploaded',
+    uploadFirst: 'Upload your first document to get started with AI-powered responses',
+    uploading: 'Uploading...',
   },
   
   settings: {

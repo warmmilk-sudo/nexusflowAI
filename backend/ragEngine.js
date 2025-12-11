@@ -178,7 +178,7 @@ class RAGEngine {
                         }
                         
                         // 添加延迟避免API限流
-                        await new Promise(resolve => setTimeout(resolve, 100));
+                        await new Promise(resolve => setTimeout(resolve, 500));
                     } catch (error) {
                         console.error(`生成向量失败 ${chunkId}:`, error);
                     }
@@ -349,7 +349,7 @@ class RAGEngine {
                         this.vectorStore.set(chunkId, embedding);
                     }
                     // 添加延迟避免API限流
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 } catch (error) {
                     console.error(`生成向量失败 ${chunkId}:`, error);
                 }

@@ -6,6 +6,7 @@ require('dotenv').config({ path: path.join(__dirname, '../.env.local') });
 const axios = require('axios');
 const { MockEmailConnector } = require('./emailConnector');
 const { createDefaultKnowledgeBase } = require('./ragEngine');
+const EmailStats = require('./emailStats');
 
 // 加载活动提示词配置
 let campaignPrompts = {};
@@ -17,10 +18,8 @@ try {
     campaignPrompts = { campaignFocus: {} };
 }
 
-
-
 const app = express();
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
@@ -56,26 +55,248 @@ async function callVolcengineAPI(messages, model = REASONING_MODEL) {
     }
 }
 
+// 邮箱配置文件路径
+const EMAIL_CONFIG_PATH = path.join(__dirname, 'config', 'emailConfig.json');
 
+// 保存邮箱配置到磁盘
+function saveEmailConfig(config) {
+    try {
+        // 确保config目录存在
+        const configDir = path.dirname(EMAIL_CONFIG_PATH);
+        if (!fs.existsSync(configDir)) {
+            fs.mkdirSync(configDir, { recursive: true });
+        }
+        
+        // 保存配置（密码进行简单编码，不是加密，仅为了避免明文显示）
+        const configToSave = {
+            ...config,
+            password: Buffer.from(config.password).toString('base64'),
+            savedAt: new Date().toISOString()
+        };
+        
+        fs.writeFileSync(EMAIL_CONFIG_PATH, JSON.stringify(configToSave, null, 2));
+        console.log('✅ 邮箱配置已保存到磁盘');
+    } catch (error) {
+        console.error('❌ 保存邮箱配置失败:', error);
+    }
+}
 
-// 初始化邮件连接器和 RAG 引擎
+// 从磁盘加载邮箱配置
+function loadEmailConfig() {
+    try {
+        if (fs.existsSync(EMAIL_CONFIG_PATH)) {
+            const configData = fs.readFileSync(EMAIL_CONFIG_PATH, 'utf-8');
+            const config = JSON.parse(configData);
+            
+            // 解码密码
+            if (config.password) {
+                config.password = Buffer.from(config.password, 'base64').toString();
+            }
+            
+            console.log('✅ 从磁盘加载邮箱配置');
+            return config;
+        }
+    } catch (error) {
+        console.error('❌ 加载邮箱配置失败:', error);
+    }
+    return null;
+}
+
+// 初始化邮件连接器、RAG 引擎和邮件统计
 let emailConnector = null;
 let ragEngine = null;
+let emailStats = null;
 
 // 启动时初始化
 (async () => {
-    // 初始化邮件连接器（支持后续配置真实邮箱）
-    emailConnector = new MockEmailConnector();
+    // 尝试加载保存的邮箱配置
+    const savedEmailConfig = loadEmailConfig();
+    
+    if (savedEmailConfig) {
+        // 如果有保存的配置，使用它初始化邮件连接器
+        const { EmailConnector, MockEmailConnector } = require('./emailConnector');
+        
+        try {
+            const newEmailConnector = new EmailConnector(savedEmailConfig);
+            
+            if (!newEmailConnector.mockMode) {
+                newEmailConnector.initSMTP();
+                emailConnector = newEmailConnector;
+                console.log(`✅ 使用保存的邮箱配置初始化 (真实SMTP) - ${savedEmailConfig.email}`);
+            } else {
+                emailConnector = new MockEmailConnector(savedEmailConfig);
+                console.log(`✅ 使用保存的邮箱配置初始化 (模拟模式) - ${savedEmailConfig.email}`);
+            }
+        } catch (error) {
+            console.error('❌ 使用保存的邮箱配置失败:', error);
+            emailConnector = new MockEmailConnector();
+        }
+    } else {
+        // 没有保存的配置，使用默认的模拟连接器
+        emailConnector = new MockEmailConnector();
+        console.log('📧 未找到保存的邮箱配置，使用默认设置');
+    }
     
     // 初始化 RAG 引擎
     ragEngine = await createDefaultKnowledgeBase();
     
+    // 初始化邮件统计
+    emailStats = new EmailStats();
+    
     console.log('✅ 系统初始化完成');
 })();
 
+// 火山引擎批量推理API调用函数
+async function callVolcengineBatchAPI(batchMessages, model = REASONING_MODEL) {
+    if (!VOLCENGINE_API_KEY || !VOLCENGINE_API_BASE || !model) {
+        throw new Error('Missing required environment variables: VOLCENGINE_API_KEY, VOLCENGINE_API_BASE, REASONING_MODEL');
+    }
+    
+    try {
+        const response = await axios.post(`${VOLCENGINE_API_BASE}/chat/completions`, {
+            model,
+            messages: batchMessages,
+            temperature: 0.7,
+            max_tokens: 2000,
+            // 设置思考长度为最短
+            thinking_length: 'short',
+            // 批量推理参数
+            batch_size: Math.min(batchMessages.length, 8), // 最大8个batch
+            stream: false
+        }, {
+            headers: {
+                'Authorization': `Bearer ${VOLCENGINE_API_KEY}`,
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        return response.data.choices || [];
+    } catch (error) {
+        console.error('火山引擎批量API调用错误:', error.response?.data || error.message);
+        throw error;
+    }
+}
 
+// API: Batch Generate Outbound Drafts
+app.post('/api/outbound/batch-generate', async (req, res) => {
+    try {
+        const { customers, focus, productContext, language } = req.body;
+        const userLanguage = language || req.headers['x-language'] || 'zh';
 
-// API: Generate Outbound Draft
+        if (!customers || !Array.isArray(customers) || customers.length === 0) {
+            return res.status(400).json({ error: 'Invalid customers data' });
+        }
+
+        // 限制批量大小为8
+        const batchSize = Math.min(customers.length, 8);
+        const batchCustomers = customers.slice(0, batchSize);
+
+        // 使用 RAG 引擎获取相关产品信息
+        let knowledgeContext = 'No specific product information available.';
+        if (ragEngine) {
+            const searchQuery = `${focus} medical device cryoablation`;
+            knowledgeContext = await ragEngine.getContextSummary(searchQuery, VOLCENGINE_API_KEY);
+        }
+
+        // 根据语言设置选择提示词
+        const languageInstructions = userLanguage === 'en' 
+            ? `Write the email in English. Keep it professional, concise, and personalized.`
+            : `用中文写邮件。保持专业、简洁和个性化。`;
+
+        // 从配置文件获取活动焦点的提示词
+        let focusSpecificInstructions = '';
+        const focusConfig = campaignPrompts.campaignFocus[focus];
+        if (focusConfig) {
+            focusSpecificInstructions = focusConfig[userLanguage] || focusConfig['en'] || '';
+        } else {
+            // 默认提示词
+            focusSpecificInstructions = userLanguage === 'en'
+                ? `Provide a comprehensive overview of all products in the knowledge base and their benefits for their medical specialty.`
+                : `为其医疗专科提供知识库中所有产品的全面概述和优势。`;
+        }
+
+        // 为每个客户构建消息
+        const batchMessages = batchCustomers.map(customer => ({
+            role: "user",
+            content: `
+                You are an expert medical device sales copywriter specializing in the AI Epic™ Co-Ablation System.
+                
+                **Language Requirement:** ${languageInstructions}
+                
+                **Product Knowledge Base:**
+                ${knowledgeContext}
+                
+                **Campaign Focus:** ${focus}
+                ${focusSpecificInstructions}
+                
+                **Sender Context:**
+                ${productContext}
+
+                **Recipient:**
+                Name: ${customer.name}
+                Role: ${customer.position}
+                Company: ${customer.company}
+                Specific Pain Point (if known): ${customer.painPoint || 'General industry challenges'}
+
+                **Email Structure:**
+                1. Personalized greeting addressing their role and institution
+                2. Brief context relevant to their specialty
+                3. Main content following the campaign focus instructions above
+                4. Clear call-to-action (schedule demo, request information, etc.)
+                5. Professional closing
+
+                **Important:**
+                - Return ONLY the email body text. Do not include subject lines or signature placeholders.
+                - Tone: Professional, knowledgeable, consultative (not pushy sales)
+                - Length: 150-250 words (concise but informative)
+                - Use the specified language (${userLanguage === 'en' ? 'English' : 'Chinese'}) throughout
+                - Make it highly relevant to their specific role and institution
+            `
+        }));
+
+        // 由于批量推理可能不被支持，改为并发单个请求
+        const results = await Promise.allSettled(
+            batchMessages.map(async (message, index) => {
+                try {
+                    const response = await callVolcengineAPI([message]);
+                    return {
+                        customerId: batchCustomers[index].id,
+                        draft: response,
+                        success: true
+                    };
+                } catch (error) {
+                    console.error(`Customer ${batchCustomers[index].name} generation failed:`, error.message);
+                    return {
+                        customerId: batchCustomers[index].id,
+                        draft: 'Failed to generate draft',
+                        success: false
+                    };
+                }
+            })
+        );
+        
+        // 构建响应
+        const drafts = results.map(result => 
+            result.status === 'fulfilled' ? result.value : {
+                customerId: 'unknown',
+                draft: 'Failed to generate draft',
+                success: false
+            }
+        );
+
+        res.json({ 
+            success: true, 
+            drafts,
+            processed: batchSize,
+            total: customers.length
+        });
+    } catch (error) {
+        console.error("Batch Outbound Error:", error.message);
+        res.status(500).json({ error: "Failed to generate batch drafts" });
+    }
+});
+
+// API: Generate Outbound Draft (单个)
 app.post('/api/outbound/generate', async (req, res) => {
     try {
         const { customer, focus, productContext, language } = req.body;
@@ -171,7 +392,9 @@ app.post('/api/inbound/analyze', async (req, res) => {
 
         // 根据语言设置选择提示词
         const systemPrompt = userLanguage === 'en' 
-            ? `You are an intelligent customer service assistant.
+            ? `You are an intelligent customer service assistant for AI Epic™ Co-Ablation System.
+            
+            **CRITICAL: You must respond with ONLY valid JSON format. No additional text, explanations, or formatting.**
             
             **Task:**
             1. Analyze email intent (Sales/Technical/Support/Spam)
@@ -185,15 +408,17 @@ app.post('/api/inbound/analyze', async (req, res) => {
             **Knowledge Base Context:**
             ${knowledgeContext}
 
-            **Output Format:**
-            Return JSON format:
-            {
-                "intent": "Sales" | "Technical" | "Support" | "Spam",
-                "draft": "Email reply content in English...",
-                "confidence": confidence score (0-100),
-                "sources": ["Referenced knowledge base document names"]
-            }`
-            : `你是一个智能客服助手。
+            **Response Requirements:**
+            - Return ONLY valid JSON
+            - No markdown formatting, no code blocks
+            - Escape all special characters in strings
+            - Keep draft content under 300 words
+            
+            **Required JSON Format:**
+            {"intent":"Sales","draft":"Professional email reply content in English without line breaks or special characters","confidence":85,"sources":["document1.pdf","document2.pdf"]}`
+            : `你是AI Epic™消融系统的智能客服助手。
+            
+            **重要：你必须只返回有效的JSON格式。不要添加任何额外的文本、解释或格式。**
             
             **任务:**
             1. 分析邮件意图（Sales/Technical/Support/Spam）
@@ -207,14 +432,14 @@ app.post('/api/inbound/analyze', async (req, res) => {
             **知识库上下文:**
             ${knowledgeContext}
 
-            **输出格式:**
-            返回 JSON 格式:
-            {
-                "intent": "Sales" | "Technical" | "Support" | "Spam",
-                "draft": "邮件回复正文（用中文）...",
-                "confidence": 置信度分数 (0-100),
-                "sources": ["引用的知识库文档名称"]
-            }`;
+            **回复要求:**
+            - 只返回有效的JSON
+            - 不要使用markdown格式或代码块
+            - 转义字符串中的所有特殊字符
+            - 回复内容保持在300字以内
+            
+            **必需的JSON格式:**
+            {"intent":"Sales","draft":"专业的中文邮件回复内容，不包含换行符或特殊字符","confidence":85,"sources":["文档1.pdf","文档2.pdf"]}`;
 
         const messages = [
             {
@@ -228,12 +453,71 @@ app.post('/api/inbound/analyze', async (req, res) => {
         // 尝试解析JSON响应，如果失败则提供默认响应
         let result;
         try {
-            result = JSON.parse(response);
+            // 清理响应文本，移除可能的控制字符和多余的格式
+            let cleanResponse = response.trim();
+            
+            // 如果响应被包装在代码块中，提取JSON部分
+            if (cleanResponse.includes('```json')) {
+                const jsonMatch = cleanResponse.match(/```json\s*([\s\S]*?)\s*```/);
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[1].trim();
+                }
+            } else if (cleanResponse.includes('```')) {
+                const jsonMatch = cleanResponse.match(/```\s*([\s\S]*?)\s*```/);
+                if (jsonMatch) {
+                    cleanResponse = jsonMatch[1].trim();
+                }
+            }
+            
+            // 移除控制字符和不可见字符
+            cleanResponse = cleanResponse
+                .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // 移除控制字符
+                .replace(/\n\s*\n/g, '\n') // 移除多余的空行
+                .trim();
+            
+            // 尝试找到JSON对象的开始和结束
+            const jsonStart = cleanResponse.indexOf('{');
+            const jsonEnd = cleanResponse.lastIndexOf('}');
+            
+            if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+                cleanResponse = cleanResponse.substring(jsonStart, jsonEnd + 1);
+            }
+            
+            result = JSON.parse(cleanResponse);
+            
+            // 验证必需的字段
+            if (!result.intent || !result.draft) {
+                throw new Error('Missing required fields in JSON response');
+            }
+            
         } catch (parseError) {
             console.error('JSON解析失败，使用默认响应:', parseError);
+            console.error('原始响应:', response);
+            
+            // 尝试从响应中提取有用信息
+            let extractedDraft = response;
+            let extractedIntent = "Technical";
+            
+            // 尝试提取意图
+            const intentMatch = response.match(/(?:intent|意图)["']?\s*:\s*["']?(Sales|Technical|Support|Spam)["']?/i);
+            if (intentMatch) {
+                extractedIntent = intentMatch[1];
+            }
+            
+            // 尝试提取草稿内容
+            const draftMatch = response.match(/(?:draft|草稿|回复)["']?\s*:\s*["']?([\s\S]*?)["']?(?:\s*[,}]|$)/i);
+            if (draftMatch) {
+                extractedDraft = draftMatch[1].trim();
+            }
+            
+            // 如果提取失败，使用整个响应作为草稿
+            if (!extractedDraft || extractedDraft.length < 10) {
+                extractedDraft = response.length > 500 ? response.substring(0, 500) + '...' : response;
+            }
+            
             result = {
-                intent: "Technical",
-                draft: response, // 使用原始文本作为草稿
+                intent: extractedIntent,
+                draft: extractedDraft,
                 confidence: 75,
                 sources: []
             };
@@ -307,7 +591,10 @@ app.post('/api/email/send', async (req, res) => {
         const { to, subject, content } = req.body;
         
         if (!emailConnector) {
-            return res.status(503).json({ error: '邮件服务未初始化' });
+            return res.status(503).json({ 
+                success: false, 
+                error: '邮件服务未初始化，请先在设置页面配置邮箱' 
+            });
         }
 
         const result = await emailConnector.sendEmail({
@@ -317,10 +604,19 @@ app.post('/api/email/send', async (req, res) => {
             html: content.replace(/\n/g, '<br>')
         });
 
+        // 如果发送成功，更新统计数据
+        if (result.success && emailStats) {
+            emailStats.incrementOutreach(1);
+            emailStats.addContactedEmail(to); // 记录已联系人
+        }
+
         res.json(result);
     } catch (error) {
         console.error("Send Email Error:", error.message);
-        res.status(500).json({ error: '发送邮件失败' });
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || '发送邮件失败' 
+        });
     }
 });
 
@@ -427,36 +723,37 @@ app.get('/api/knowledge/config', (req, res) => {
 // API: 配置邮箱设置
 app.post('/api/email/configure', async (req, res) => {
     try {
-        const { email, password, imapHost, smtpHost, senderName } = req.body;
+        const { email, password, imapHost, imapPort, smtpHost, smtpPort, senderName } = req.body;
+        
+        const emailConfig = {
+            email,
+            password,
+            imapHost: imapHost || 'imap.gmail.com',
+            imapPort: imapPort || 993,
+            smtpHost: smtpHost || 'smtp.gmail.com',
+            smtpPort: smtpPort || 465,
+            senderName: senderName || 'NexusFlow AI'
+        };
         
         // 尝试创建真实的邮件连接器
         const { EmailConnector, MockEmailConnector } = require('./emailConnector');
         
         try {
-            const newEmailConnector = new EmailConnector({
-                email,
-                password,
-                imapHost: imapHost || 'imap.gmail.com',
-                smtpHost: smtpHost || 'smtp.gmail.com',
-                senderName: senderName || 'NexusFlow AI'
-            });
+            const newEmailConnector = new EmailConnector(emailConfig);
             
             // 如果EmailConnector可用，使用它
             if (!newEmailConnector.mockMode) {
                 newEmailConnector.initSMTP();
                 emailConnector = newEmailConnector;
-                console.log('✅ 邮箱配置已更新 (真实SMTP)');
+                console.log(`✅ 邮箱配置已更新 (真实SMTP) - SMTP: ${emailConfig.smtpHost}:${emailConfig.smtpPort}`);
             } else {
                 // 如果依赖不可用，使用MockEmailConnector但传入真实配置
-                emailConnector = new MockEmailConnector({
-                    email,
-                    password,
-                    imapHost: imapHost || 'imap.gmail.com',
-                    smtpHost: smtpHost || 'smtp.gmail.com',
-                    senderName: senderName || 'NexusFlow AI'
-                });
+                emailConnector = new MockEmailConnector(emailConfig);
                 console.log('✅ 邮箱配置已更新 (模拟模式，但会尝试真实发送)');
             }
+            
+            // 保存配置到磁盘
+            saveEmailConfig(emailConfig);
             
             res.json({ success: true, message: '邮箱配置成功' });
             
@@ -468,6 +765,73 @@ app.post('/api/email/configure', async (req, res) => {
     } catch (error) {
         console.error('邮箱配置错误:', error);
         res.status(500).json({ success: false, error: '配置邮箱失败' });
+    }
+});
+
+// API: 获取邮箱配置（不返回密码）
+app.get('/api/email/config', (req, res) => {
+    try {
+        const config = loadEmailConfig();
+        if (config) {
+            // 返回配置但不包含密码
+            const { password, ...configWithoutPassword } = config;
+            res.json({ success: true, config: configWithoutPassword });
+        } else {
+            res.json({ success: false, message: '未找到邮箱配置' });
+        }
+    } catch (error) {
+        console.error('获取邮箱配置错误:', error);
+        res.status(500).json({ success: false, error: '获取邮箱配置失败' });
+    }
+});
+
+// API: 获取邮件统计数据
+app.get('/api/email/stats', (req, res) => {
+    try {
+        if (!emailStats) {
+            return res.status(503).json({ error: '邮件统计服务未初始化' });
+        }
+        
+        const stats = emailStats.getStats();
+        res.json(stats);
+    } catch (error) {
+        console.error('获取邮件统计错误:', error);
+        res.status(500).json({ error: '获取邮件统计失败' });
+    }
+});
+
+// API: 获取收件箱邮件（真实IMAP）
+app.get('/api/email/inbox', async (req, res) => {
+    try {
+        const { focusMode } = req.query; // 获取focus模式参数
+        
+        if (!emailConnector) {
+            return res.status(503).json({ 
+                error: '邮件服务未初始化，请先在设置页面配置邮箱' 
+            });
+        }
+
+        // 如果是模拟模式或没有IMAP功能，返回空数组
+        if (emailConnector.mockMode || !emailConnector.fetchRecentEmails) {
+            return res.json({ emails: [] });
+        }
+
+        // 获取最近的邮件
+        let emails = await emailConnector.fetchRecentEmails(20); // 获取最近20封邮件
+        
+        // 如果启用focus模式，只显示已联系人的回复
+        if (focusMode === 'true' && emailStats) {
+            const contactedEmails = emailStats.getContactedEmails();
+            emails = emails.filter(email => 
+                emailStats.isContactedEmail(email.fromEmail)
+            );
+            console.log(`📧 Focus模式: 过滤后显示 ${emails.length} 封已联系人邮件`);
+        }
+        
+        res.json({ emails, focusMode: focusMode === 'true' });
+    } catch (error) {
+        console.error('获取收件箱邮件错误:', error);
+        res.status(500).json({ error: '获取收件箱邮件失败' });
     }
 });
 

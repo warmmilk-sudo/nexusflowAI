@@ -1,0 +1,56 @@
+{
+  "totalOutreach": 2,
+  "totalReplies": 0,
+  "pendingDrafts": 0,
+  "activeLeads": 0,
+  "responseRate": 0,
+  "lastUpdated": "2025-12-11T09:07:19.245Z",
+  "weeklyData": [
+    {
+      "name": "Fri",
+      "sent": 0,
+      "replies": 0,
+      "date": "2025-12-05"
+    },
+    {
+      "name": "Sat",
+      "sent": 0,
+      "replies": 0,
+      "date": "2025-12-06"
+    },
+    {
+      "name": "Sun",
+      "sent": 0,
+      "replies": 0,
+      "date": "2025-12-07"
+    },
+    {
+      "name": "Mon",
+      "sent": 0,
+      "replies": 0,
+      "date": "2025-12-08"
+    },
+    {
+      "name": "Tue",
+      "sent": 0,
+      "replies": 0,
+      "date": "2025-12-09"
+    },
+    {
+      "name": "Wed",
+      "sent": 0,
+      "replies": 0,
+      "date": "2025-12-10"
+    },
+    {
+      "name": "Thu",
+      "sent": 2,
+      "replies": 0,
+      "date": "2025-12-11"
+    }
+  ],
+  "contactedEmails": [
+    "warmmilk21@gmail.com",
+    "xz02@hygeamed.com"
+  ]
+}

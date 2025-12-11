@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
-import { Upload, FileSpreadsheet, Play, CheckCircle2, AlertCircle, RefreshCw, Eye, Send, Trash2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Play, CheckCircle2, AlertCircle, RefreshCw, Eye, Send, Trash2, Edit3 } from 'lucide-react';
 import { Customer, CampaignFocus } from '../types';
-import { generateOutboundDraft, sendEmail } from '../services/apiService';
-import { useTranslation } from 'src/i18n';
+import { generateOutboundDraft, generateBatchOutboundDrafts, sendEmail } from '../services/apiService';
+import { useTranslation, getCurrentLanguage } from 'src/i18n';
 
 const Outbound: React.FC = () => {
   const t = useTranslation();
@@ -13,9 +13,14 @@ const Outbound: React.FC = () => {
     return saved ? JSON.parse(saved) : [];
   });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, batch: 0 });
   const [campaignFocus, setCampaignFocus] = useState<CampaignFocus>(CampaignFocus.PRODUCT_INTRODUCTION);
   const [productContext, setProductContext] = useState("AI Epic™ Co-Ablation System is an advanced dual-modality cryoablation and thermal therapy system for minimally invasive tumor treatment. Key benefits include: precise CT/MRI guidance, dual freeze-heat cycles for complete tumor destruction, suitable for liver, kidney, lung, and prostate procedures, outpatient capability with faster recovery times.");
   const [selectedDraft, setSelectedDraft] = useState<{customer: Customer, draft: string} | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedDraft, setEditedDraft] = useState('');
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState<string | null>(null); // 正在发送邮件的客户ID
 
   // Save customers to localStorage whenever it changes
   React.useEffect(() => {
@@ -93,46 +98,128 @@ const Outbound: React.FC = () => {
     if (customers.length === 0) return;
     setIsProcessing(true);
 
-    // Process sequentially to simulate a real queue and avoid rate limits
     const updatedCustomers = [...customers];
+    let processedCount = 0;
     
-    for (let i = 0; i < updatedCustomers.length; i++) {
-        // Update status to processing
+    // 分批处理，每批最多8个
+    const batchSize = 8;
+    const totalBatches = Math.ceil(updatedCustomers.length / batchSize);
+    
+    for (let batchStart = 0; batchStart < updatedCustomers.length; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize, updatedCustomers.length);
+      const currentBatch = updatedCustomers.slice(batchStart, batchEnd);
+      const currentBatchNumber = Math.floor(batchStart / batchSize) + 1;
+      
+      // 更新进度
+      setProcessingProgress({
+        current: processedCount,
+        total: updatedCustomers.length,
+        batch: currentBatchNumber
+      });
+      
+      // 将当前批次状态设为processing
+      for (let i = batchStart; i < batchEnd; i++) {
         updatedCustomers[i] = { ...updatedCustomers[i], status: 'processing' };
-        setCustomers([...updatedCustomers]);
+      }
+      setCustomers([...updatedCustomers]);
 
-        try {
-          // Call Gemini Service
-          const draft = await generateOutboundDraft(updatedCustomers[i], campaignFocus, productContext);
-          
-          // Update status to completed
-          updatedCustomers[i] = { 
-              ...updatedCustomers[i], 
-              status: 'completed', 
-              generatedDraft: draft 
-          };
-        } catch (error) {
-          console.error(`Failed to generate draft for ${updatedCustomers[i].name}:`, error);
-          updatedCustomers[i] = { 
-              ...updatedCustomers[i], 
-              status: 'failed'
-          };
-        }
+      try {
+        // 调用批量生成API
+        const data = await generateBatchOutboundDrafts(currentBatch, campaignFocus, productContext);
         
-        setCustomers([...updatedCustomers]);
+        if (data.success && data.drafts) {
+          // 更新批次结果
+          data.drafts.forEach((result: any) => {
+            const customerIndex = updatedCustomers.findIndex(c => c.id === result.customerId);
+            if (customerIndex !== -1) {
+              updatedCustomers[customerIndex] = {
+                ...updatedCustomers[customerIndex],
+                status: result.success ? 'completed' : 'failed',
+                generatedDraft: result.success ? result.draft : undefined
+              };
+            }
+          });
+          
+          processedCount += data.processed;
+          console.log(`✅ 批次 ${currentBatchNumber}/${totalBatches} 完成: ${data.processed} 个客户`);
+        } else {
+          // 批次失败，将所有客户标记为失败
+          for (let i = batchStart; i < batchEnd; i++) {
+            updatedCustomers[i] = { ...updatedCustomers[i], status: 'failed' };
+          }
+        }
+      } catch (error) {
+        console.error(`批次处理失败 (${batchStart}-${batchEnd}):`, error);
+        // 批次失败，将所有客户标记为失败
+        for (let i = batchStart; i < batchEnd; i++) {
+          updatedCustomers[i] = { ...updatedCustomers[i], status: 'failed' };
+        }
+      }
+      
+      setCustomers([...updatedCustomers]);
+      
+      // 如果还有更多批次，稍作延迟避免API限制
+      if (batchEnd < updatedCustomers.length) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
     }
     
     setIsProcessing(false);
+    setProcessingProgress({ current: 0, total: 0, batch: 0 });
+    console.log(`🎉 批量处理完成: 总共处理 ${processedCount}/${updatedCustomers.length} 个客户`);
+  };
+
+  const handleRegenerateDraft = async (customer: Customer) => {
+    if (!customer) return;
+    
+    setIsRegenerating(true);
+    try {
+      const newDraft = await generateOutboundDraft(customer, campaignFocus, productContext);
+      
+      // 更新客户的草稿
+      setCustomers(prev => prev.map(c => 
+        c.id === customer.id 
+          ? { ...c, generatedDraft: newDraft }
+          : c
+      ));
+      
+      // 更新当前选中的草稿
+      setSelectedDraft(prev => prev ? { ...prev, draft: newDraft } : null);
+      setEditedDraft(newDraft);
+      
+    } catch (error) {
+      console.error('Regenerate draft error:', error);
+      alert('重新生成草稿失败，请稍后重试');
+    } finally {
+      setIsRegenerating(false);
+    }
+  };
+
+  const handleSaveEditedDraft = () => {
+    if (!selectedDraft) return;
+    
+    // 更新客户的草稿
+    setCustomers(prev => prev.map(c => 
+      c.id === selectedDraft.customer.id 
+        ? { ...c, generatedDraft: editedDraft }
+        : c
+    ));
+    
+    // 更新当前选中的草稿
+    setSelectedDraft(prev => prev ? { ...prev, draft: editedDraft } : null);
+    setIsEditing(false);
   };
 
   const handleSendEmail = async (customer: Customer, draft: string) => {
     if (!customer.email || !draft) return;
     
+    setSendingEmail(customer.id);
+    
     try {
       const subject = `AI Epic™ Co-Ablation System - Advanced Solution for ${customer.position}`;
-      const success = await sendEmail(customer.email, subject, draft);
+      const result = await sendEmail(customer.email, subject, draft);
       
-      if (success) {
+      if (result.success) {
         // Update customer status to sent
         setCustomers(prev => prev.map(c => 
           c.id === customer.id 
@@ -140,13 +227,15 @@ const Outbound: React.FC = () => {
             : c
         ));
         setSelectedDraft(null);
-        alert(`Email sent successfully to ${customer.name}!`);
+        alert(`邮件发送成功给 ${customer.name}!`);
       } else {
-        alert(`Failed to send email to ${customer.name}. Please check email configuration.`);
+        alert(`发送邮件失败给 ${customer.name}: ${result.error || '未知错误'}`);
       }
     } catch (error) {
       console.error('Send email error:', error);
-      alert(`Error sending email to ${customer.name}`);
+      alert(`发送邮件错误给 ${customer.name}: ${error instanceof Error ? error.message : '未知错误'}`);
+    } finally {
+      setSendingEmail(null);
     }
   };
 
@@ -231,7 +320,10 @@ const Outbound: React.FC = () => {
                     }`}
                 >
                     {isProcessing ? <RefreshCw className="animate-spin" size={20} /> : <Play size={20} />}
-                    {isProcessing ? t.outbound.generating : t.outbound.startGeneration}
+                    {isProcessing 
+                        ? `批次 ${processingProgress.batch} - ${processingProgress.current}/${processingProgress.total}` 
+                        : t.outbound.startGeneration
+                    }
                 </button>
            </div>
         </div>
@@ -272,7 +364,11 @@ const Outbound: React.FC = () => {
                                 <td className="p-4 text-right">
                                     {c.generatedDraft && (
                                         <button 
-                                            onClick={() => setSelectedDraft({customer: c, draft: c.generatedDraft!})}
+                                            onClick={() => {
+                                                setSelectedDraft({customer: c, draft: c.generatedDraft!});
+                                                setEditedDraft(c.generatedDraft!);
+                                                setIsEditing(false);
+                                            }}
                                             className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 ml-auto"
                                         >
                                             <Eye size={16} /> {t.outbound.preview}
@@ -290,25 +386,89 @@ const Outbound: React.FC = () => {
       {/* Draft Modal */}
       {selectedDraft && (
           <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col">
                   <div className="p-6 border-b border-slate-100 flex justify-between items-center">
                       <h3 className="text-lg font-bold text-slate-900">{t.outbound.draftFor} {selectedDraft.customer.name}</h3>
-                      <button onClick={() => setSelectedDraft(null)} className="text-slate-400 hover:text-slate-600">×</button>
-                  </div>
-                  <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
-                      <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700">
-                          {selectedDraft.draft}
+                      <div className="flex items-center gap-2">
+                          <button 
+                              onClick={() => handleRegenerateDraft(selectedDraft.customer)}
+                              disabled={isRegenerating}
+                              className={`px-3 py-1.5 text-sm rounded-lg flex items-center gap-2 transition-colors ${
+                                  isRegenerating 
+                                      ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                                      : 'text-blue-600 hover:bg-blue-50 hover:text-blue-700'
+                              }`}
+                          >
+                              <RefreshCw size={14} className={isRegenerating ? 'animate-spin' : ''} />
+                              {isRegenerating ? t.outbound.regenerating : t.outbound.regenerate}
+                          </button>
+                          <button onClick={() => setSelectedDraft(null)} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
                       </div>
                   </div>
-                  <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-white rounded-b-xl">
-                      <button onClick={() => setSelectedDraft(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">{t.outbound.close}</button>
-                      <button 
-                        onClick={() => handleSendEmail(selectedDraft.customer, selectedDraft.draft)}
-                        className="px-4 py-2 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-sm flex items-center gap-2"
-                      >
-                        <Send size={16} />
-                        {t.outbound.approveAndSend}
-                      </button>
+                  <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+                      {isEditing ? (
+                          <textarea
+                              value={editedDraft}
+                              onChange={(e) => setEditedDraft(e.target.value)}
+                              className="w-full h-full min-h-[300px] p-4 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-sm leading-relaxed resize-none"
+                              placeholder="编辑邮件内容..."
+                          />
+                      ) : (
+                          <div className="bg-white border border-slate-200 p-6 rounded-lg shadow-sm whitespace-pre-wrap font-sans text-sm leading-relaxed text-slate-700">
+                              {selectedDraft.draft}
+                          </div>
+                      )}
+                  </div>
+                  <div className="p-6 border-t border-slate-100 flex justify-between bg-white rounded-b-xl">
+                      <div className="flex gap-2">
+                          {isEditing ? (
+                              <>
+                                  <button 
+                                      onClick={() => {
+                                          setIsEditing(false);
+                                          setEditedDraft(selectedDraft.draft);
+                                      }}
+                                      className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg"
+                                  >
+                                      {t.common.cancel}
+                                  </button>
+                                  <button 
+                                      onClick={handleSaveEditedDraft}
+                                      className="px-4 py-2 text-sm bg-green-600 text-white hover:bg-green-700 rounded-lg flex items-center gap-2"
+                                  >
+                                      <CheckCircle2 size={16} />
+                                      {t.outbound.saveChanges}
+                                  </button>
+                              </>
+                          ) : (
+                              <button 
+                                  onClick={() => setIsEditing(true)}
+                                  className="px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-2"
+                              >
+                                  <Edit3 size={16} />
+                                  {t.outbound.editDraft}
+                              </button>
+                          )}
+                      </div>
+                      <div className="flex gap-3">
+                          <button onClick={() => setSelectedDraft(null)} className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">{t.outbound.close}</button>
+                          <button 
+                            onClick={() => handleSendEmail(selectedDraft.customer, isEditing ? editedDraft : selectedDraft.draft)}
+                            disabled={isEditing || sendingEmail === selectedDraft.customer.id}
+                            className={`px-4 py-2 text-sm rounded-lg shadow-sm flex items-center gap-2 ${
+                                isEditing || sendingEmail === selectedDraft.customer.id
+                                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
+                          >
+                            {sendingEmail === selectedDraft.customer.id ? (
+                              <RefreshCw size={16} className="animate-spin" />
+                            ) : (
+                              <Send size={16} />
+                            )}
+                            {sendingEmail === selectedDraft.customer.id ? '发送中...' : t.outbound.approveAndSend}
+                          </button>
+                      </div>
                   </div>
               </div>
           </div>
