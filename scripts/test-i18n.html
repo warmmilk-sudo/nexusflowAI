@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多语言测试</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+        button { padding: 8px 16px; margin: 5px; border: none; border-radius: 4px; cursor: pointer; }
+        .primary { background: #3b82f6; color: white; }
+        .secondary { background: #6b7280; color: white; }
+    </style>
+</head>
+<body>
+    <h1>NexusFlow AI - 多语言功能测试</h1>
+    
+    <div class="test-section">
+        <h2>语言切换测试</h2>
+        <button class="primary" onclick="setLang('zh')">切换到中文</button>
+        <button class="primary" onclick="setLang('en')">Switch to English</button>
+        <p>当前语言: <span id="currentLang"></span></p>
+    </div>
+
+    <div class="test-section">
+        <h2>翻译测试</h2>
+        <div id="translations"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>邮箱配置测试</h2>
+        <form id="emailForm">
+            <div style="margin: 10px 0;">
+                <label>邮箱地址: </label>
+                <input type="email" id="email" placeholder="your-email@gmail.com" style="padding: 5px; width: 200px;">
+            </div>
+            <div style="margin: 10px 0;">
+                <label>密码: </label>
+                <input type="password" id="password" placeholder="••••••••" style="padding: 5px; width: 200px;">
+            </div>
+            <div style="margin: 10px 0;">
+                <label>发件人姓名: </label>
+                <input type="text" id="senderName" placeholder="Your Name" style="padding: 5px; width: 200px;">
+            </div>
+            <button type="button" class="primary" onclick="testEmailConfig()">测试邮箱配置</button>
+        </form>
+        <div id="emailResult"></div>
+    </div>
+
+    <script>
+        // 模拟翻译系统
+        const translations = {
+            zh: {
+                nav: {
+                    dashboard: '仪表盘',
+                    outbound: '批量外发',
+                    inbound: '智能收件箱',
+                    knowledge: '知识库',
+                    settings: '设置'
+                },
+                common: {
+                    save: '保存',
+                    cancel: '取消',
+                    success: '成功'
+                }
+            },
+            en: {
+                nav: {
+                    dashboard: 'Dashboard',
+                    outbound: 'Batch Outbound',
+                    inbound: 'Smart Inbox',
+                    knowledge: 'Knowledge Base',
+                    settings: 'Settings'
+                },
+                common: {
+                    save: 'Save',
+                    cancel: 'Cancel',
+                    success: 'Success'
+                }
+            }
+        };
+
+        let currentLang = localStorage.getItem('nexusflow_language') || 'zh';
+
+        function setLang(lang) {
+            currentLang = lang;
+            localStorage.setItem('nexusflow_language', lang);
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            document.getElementById('currentLang').textContent = currentLang;
+            
+            const t = translations[currentLang];
+            const translationsDiv = document.getElementById('translations');
+            
+            translationsDiv.innerHTML = `
+                <p><strong>导航翻译:</strong></p>
+                <ul>
+                    <li>Dashboard: ${t.nav.dashboard}</li>
+                    <li>Outbound: ${t.nav.outbound}</li>
+                    <li>Inbox: ${t.nav.inbound}</li>
+                    <li>Knowledge: ${t.nav.knowledge}</li>
+                    <li>Settings: ${t.nav.settings}</li>
+                </ul>
+                <p><strong>通用翻译:</strong></p>
+                <ul>
+                    <li>Save: ${t.common.save}</li>
+                    <li>Cancel: ${t.common.cancel}</li>
+                    <li>Success: ${t.common.success}</li>
+                </ul>
+            `;
+        }
+
+        function testEmailConfig() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const senderName = document.getElementById('senderName').value;
+            
+            if (!email || !password) {
+                alert('请填写邮箱地址和密码');
+                return;
+            }
+
+            const config = {
+                email,
+                password,
+                imapHost: 'imap.gmail.com',
+                smtpHost: 'smtp.gmail.com',
+                senderName: senderName || 'NexusFlow AI'
+            };
+
+            // 保存到本地存储
+            localStorage.setItem('nexusflow_email_config', JSON.stringify(config));
+            
+            document.getElementById('emailResult').innerHTML = `
+                <div style="margin-top: 10px; padding: 10px; background: #d1fae5; border-radius: 4px; color: #065f46;">
+                    ✅ 邮箱配置已保存到本地存储<br>
+                    邮箱: ${email}<br>
+                    发件人: ${senderName || 'NexusFlow AI'}
+                </div>
+            `;
+        }
+
+        // 初始化显示
+        updateDisplay();
+    </script>
+</body>
+</html>

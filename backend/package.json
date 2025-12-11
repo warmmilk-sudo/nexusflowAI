@@ -1,0 +1,30 @@
+{
+    "name": "nexusflow-server",
+    "version": "1.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "node --watch index.js",
+        "install-deps": "node install.js"
+    },
+    "dependencies": {
+        "@volcengine/openapi": "^1.32.0",
+        "axios": "^1.13.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.6.1",
+        "express": "^4.22.1"
+    },
+    "optionalDependencies": {
+        "imap": "^0.8.17",
+        "mailparser": "^2.3.0",
+        "nodemailer": "^7.0.11"
+    },
+    "overrides": {
+        "@volcengine/openapi": {
+            "axios": "^1.7.9"
+        },
+        "mailparser": {
+            "nodemailer": "^6.10.0"
+        }
+    }
+}

@@ -1,0 +1,121 @@
+# AI Epic™ Co-Ablation System - Product Manual
+
+## Product Overview
+The AI Epic™ Co-Ablation System represents a breakthrough in minimally invasive tumor treatment, combining advanced cryoablation and thermal therapy technologies. This dual-modality approach provides superior treatment outcomes for various tumor types across multiple medical specialties.
+
+## Key Features
+
+### Dual-Modality Technology
+- **Cryoablation**: Ultra-low temperature freezing (-196°C) using liquid nitrogen
+- **Thermal Therapy**: Precise heating (60-100°C) for complete tumor destruction
+- **Sequential Treatment**: Automated switching between freeze and heat cycles
+
+### Advanced Imaging Integration
+- **Real-time CT Guidance**: Continuous visualization during procedure
+- **MRI Compatibility**: Compatible with 1.5T and 3.0T MRI systems
+- **Ultrasound Integration**: Multi-modal imaging support
+- **3D Treatment Planning**: Pre-procedure planning software included
+
+### Clinical Applications
+
+#### Urology Applications
+- **Prostate Cancer**: Focal therapy for localized tumors
+- **Renal Cell Carcinoma**: Nephron-sparing treatment option
+- **Bladder Tumors**: Minimally invasive alternative to surgery
+- **Treatment Benefits**: Reduced recovery time, preserved organ function
+
+#### Interventional Radiology
+- **Liver Tumors**: Primary and metastatic lesions
+- **Lung Nodules**: Peripheral lung cancer treatment
+- **Bone Metastases**: Pain management and tumor control
+- **Soft Tissue Masses**: Various benign and malignant lesions
+
+#### Oncology Applications
+- **Multi-organ Capability**: Liver, lung, kidney, bone, soft tissue
+- **Palliative Care**: Pain relief for advanced cancer patients
+- **Combination Therapy**: Compatible with chemotherapy and radiation
+- **Repeat Treatments**: Multiple sessions as needed
+
+## Technical Specifications
+
+### System Components
+- **Control Console**: Touch-screen interface with AI-guided protocols
+- **Cryoprobes**: Multiple sizes (1.7mm, 2.4mm, 3.0mm diameter)
+- **Thermal Probes**: Adjustable heating elements
+- **Liquid Nitrogen Supply**: Integrated cooling system
+- **Safety Monitoring**: Real-time temperature and pressure monitoring
+
+### Performance Metrics
+- **Freeze Zone**: Up to 4cm diameter ice ball
+- **Heating Zone**: Precise 1-3cm thermal ablation
+- **Treatment Time**: 15-45 minutes depending on tumor size
+- **Accuracy**: Sub-millimeter precision with image guidance
+
+## Competitive Advantages
+
+### vs. Traditional Argon-Helium Systems
+- **Superior Cooling**: Liquid nitrogen provides faster, more uniform freezing
+- **Dual Modality**: Combined freeze-heat cycle ensures complete cell death
+- **Cost Efficiency**: Lower operating costs, no expensive gas cartridges
+- **Reliability**: Fewer mechanical components, reduced maintenance
+
+### vs. Radiofrequency Ablation
+- **Larger Treatment Zone**: Single probe covers larger area
+- **Better Visualization**: Ice ball clearly visible on imaging
+- **Less Pain**: Cryoablation provides natural anesthesia
+- **Reduced Complications**: Lower risk of bleeding and infection
+
+### vs. Microwave Ablation
+- **Precise Control**: Better temperature control and monitoring
+- **Dual Mechanism**: Freeze-thaw-heat cycle more effective
+- **Versatility**: Suitable for more tumor types and locations
+- **Safety Profile**: Lower risk of thermal injury to adjacent organs
+
+## Safety and Efficacy
+
+### Clinical Evidence
+- **FDA Cleared**: 510(k) clearance for multiple indications
+- **CE Marked**: European conformity for medical devices
+- **Clinical Studies**: Over 500 patients treated in clinical trials
+- **Success Rate**: 95% complete tumor ablation in studies
+
+### Safety Features
+- **Temperature Monitoring**: Continuous probe temperature feedback
+- **Pressure Safety**: Automatic shutdown on pressure anomalies
+- **Emergency Stop**: Immediate procedure termination capability
+- **Alarm System**: Audio and visual alerts for all safety parameters
+
+## Training and Support
+
+### Physician Training
+- **Hands-on Workshops**: 2-day intensive training program
+- **Online Modules**: Comprehensive e-learning platform
+- **Proctoring**: On-site procedure guidance for first cases
+- **Certification**: Completion certificate for trained physicians
+
+### Technical Support
+- **24/7 Hotline**: Round-the-clock technical assistance
+- **Remote Diagnostics**: System monitoring and troubleshooting
+- **Preventive Maintenance**: Scheduled service programs
+- **Spare Parts**: Guaranteed availability and fast delivery
+
+## Economic Benefits
+
+### Cost Analysis
+- **Procedure Cost**: 30-40% lower than surgical alternatives
+- **Hospital Stay**: Outpatient or 23-hour observation
+- **Recovery Time**: Return to normal activities in 3-5 days
+- **Complications**: Significantly lower than open surgery
+
+### Reimbursement
+- **CPT Codes**: Established billing codes for most procedures
+- **Insurance Coverage**: Covered by major insurance providers
+- **Value-based Care**: Improved outcomes at lower total cost
+- **ROI Analysis**: Typical payback period of 12-18 months
+
+## Contact Information
+For more information about the AI Epic™ Co-Ablation System:
+- Technical Support: +1-800-HYGEA-AI
+- Sales Inquiries: sales@hygeamedical.com
+- Clinical Support: clinical@hygeamedical.com
+- Website: www.hygeamedical.com/ai-epic
